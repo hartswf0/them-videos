@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Integrated Video Crystal</title>
+    <script async src="https://unpkg.com/es-module-shims@1.8.0/dist/es-module-shims.js"></script>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.157.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.157.0/examples/jsm/"
+        }
+    }
+    </script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: linear-gradient(135deg, #994040 0%, #662222 100%);
+            touch-action: none;
+        }
+        #container {
+            width: 100vw;
+            height: 100vh;
+            touch-action: none;
+        }
+        .vimeo-embed {
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        @media (max-width: 768px) {
+            .vimeo-embed {
+                width: 320px;
+                height: 180px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="container"></div>
+    <script type="module">
+        import * as THREE from 'three';
+        import { CSS3DRenderer, CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
+
+        class IntegratedVideoCrystal {
+            constructor(container) {
+                this.container = container;
+                this.videoIds = [
+                    '1045251622', '1045251610', '1045251488', '1045251603', '1045251596', 
+                    '1045251591', '1045251574', '1045251561', '1045251554', '1045251546',
+                    '1045251538', '1045251528', '1045251519', '1045251511', '1045251497'
+                ];
+                this.isMobile = window.innerWidth <= 768;
+                this.setup();
+                this.createScene();
+                this.animate();
+                this.setupTouchControls();
+            }
+
+            setup() {
+                this.scene = new THREE.Scene();
+                
+                // Adjust camera parameters based on device
+                const fov = this.isMobile ? 85 : 75;
+                this.camera = new THREE.PerspectiveCamera(fov, window.innerWidth / window.innerHeight, 1, 5000);
+                this.camera.position.set(0, this.isMobile ? 300 : 500, this.isMobile ? 1500 : 2000);
+
+                this.renderer = new CSS3DRenderer();
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.container.appendChild(this.renderer.domElement);
+
+                this.setupControls();
+            }
+
+            setupControls() {
+                this.isDragging = false;
+                this.previousMousePosition = { x: 0, y: 0 };
+                this.rotationSpeed = 0.001;
+                this.autoRotate = true;
+
+                // Mouse controls
+                this.container.addEventListener('mousedown', (e) => {
+                    this.isDragging = true;
+                    this.previousMousePosition = { x: e.clientX, y: e.clientY };
+                });
+
+                this.container.addEventListener('mousemove', (e) => {
+                    if (!this.isDragging) return;
+                    const deltaMove = {
+                        x: e.clientX - this.previousMousePosition.x,
+                        y: e.clientY - this.previousMousePosition.y
+                    };
+                    this.scene.rotation.y += deltaMove.x * 0.005;
+                    this.scene.rotation.x += deltaMove.y * 0.005;
+                    this.previousMousePosition = { x: e.clientX, y: e.clientY };
+                });
+
+                this.container.addEventListener('mouseup', () => this.isDragging = false);
+                this.container.addEventListener('mouseleave', () => this.isDragging = false);
+
+                // Zoom control
+                this.container.addEventListener('wheel', (e) => {
+                    e.preventDefault();
+                    const zoomSpeed = this.isMobile ? 1 : 2;
+                    this.camera.position.z = Math.max(1000, Math.min(3000, 
+                        this.camera.position.z + e.deltaY * zoomSpeed));
+                });
+
+                // Window resize handling
+                window.addEventListener('resize', () => {
+                    this.isMobile = window.innerWidth <= 768;
+                    this.camera.aspect = window.innerWidth / window.innerHeight;
+                    this.camera.fov = this.isMobile ? 85 : 75;
+                    this.camera.updateProjectionMatrix();
+                    this.renderer.setSize(window.innerWidth, window.innerHeight);
+                });
+            }
+
+            setupTouchControls() {
+                let touchStartX = 0;
+                let touchStartY = 0;
+                let lastTouchX = 0;
+                let lastTouchY = 0;
+
+                this.container.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    touchStartX = e.touches[0].pageX;
+                    touchStartY = e.touches[0].pageY;
+                    lastTouchX = touchStartX;
+                    lastTouchY = touchStartY;
+                    this.autoRotate = false;
+                });
+
+                this.container.addEventListener('touchmove', (e) => {
+                    e.preventDefault();
+                    const touchX = e.touches[0].pageX;
+                    const touchY = e.touches[0].pageY;
+                    
+                    const deltaX = touchX - lastTouchX;
+                    const deltaY = touchY - lastTouchY;
+                    
+                    this.scene.rotation.y += deltaX * 0.005;
+                    this.scene.rotation.x += deltaY * 0.005;
+                    
+                    lastTouchX = touchX;
+                    lastTouchY = touchY;
+                });
+
+                this.container.addEventListener('touchend', () => {
+                    this.autoRotate = true;
+                });
+            }
+
+            createVimeoElement(videoId) {
+                const div = document.createElement('div');
+                const width = this.isMobile ? '320px' : '640px';
+                const height = this.isMobile ? '180px' : '360px';
+                div.style.width = width;
+                div.style.height = height;
+                
+                const iframe = document.createElement('iframe');
+                iframe.src = `https://player.vimeo.com/video/${videoId}?title=0&byline=0&portrait=0&badge=0&autopause=0&player_id=0&app_id=58479&background=1&autoplay=1&loop=1&muted=1`;
+                iframe.style.width = '100%';
+                iframe.style.height = '100%';
+                iframe.style.border = 'none';
+                iframe.allow = "autoplay; fullscreen; picture-in-picture";
+                iframe.className = 'vimeo-embed';
+                
+                div.appendChild(iframe);
+                return div;
+            }
+
+            createParallelPentagon(y, videoStartIndex) {
+                const group = new THREE.Group();
+                const radius = this.isMobile ? 500 : 800;
+                const segments = 5;
+
+                for (let i = 0; i < segments; i++) {
+                    const angle = (i / segments) * Math.PI * 2;
+                    const nextAngle = ((i + 1) / segments) * Math.PI * 2;
+                    const videoIndex = (videoStartIndex + i) % this.videoIds.length;
+                    const element = this.createVimeoElement(this.videoIds[videoIndex]);
+                    const object = new CSS3DObject(element);
+                    
+                    const midAngle = (angle + nextAngle) / 2;
+                    object.position.x = Math.cos(midAngle) * radius;
+                    object.position.z = Math.sin(midAngle) * radius;
+                    object.position.y = y;
+                    
+                    object.rotation.y = -midAngle + Math.PI / 2;
+                    
+                    group.add(object);
+                }
+
+                return group;
+            }
+
+            createScene() {
+                const spacing = this.isMobile ? 500 : 800;
+                this.pentagons = [];
+
+                for (let i = 0; i < 3; i++) {
+                    const y = (i - 1) * spacing;
+                    const pentagon = this.createParallelPentagon(y, i * 5);
+                    this.scene.add(pentagon);
+                    this.pentagons.push(pentagon);
+                }
+
+                this.camera.lookAt(0, 0, 0);
+            }
+
+            animate() {
+                requestAnimationFrame(() => this.animate());
+                
+                if (!this.isDragging && this.autoRotate) {
+                    this.scene.rotation.y += this.rotationSpeed;
+                }
+                
+                this.renderer.render(this.scene, this.camera);
+            }
+        }
+
+        // Initialize
+        window.addEventListener('load', () => {
+            new IntegratedVideoCrystal(document.getElementById('container'));
+        });
+    </script>
+</body>
+</html>
