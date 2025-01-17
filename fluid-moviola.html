@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Fluid Moviola</title>
+    <style>
+        :root {
+            --primary-bg: #1a1a1a;
+            --secondary-bg: #2a2a2a;
+            --accent: rgba(255, 241, 230, 0.9);
+            --accent-glow: rgba(255, 99, 71, 0.6);
+            --text: #ffffff;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: var(--primary-bg);
+            color: var(--text);
+            font-family: monospace;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+
+        .main-screen {
+            flex-grow: 1;
+            position: relative;
+            background: #000;
+            overflow: hidden;
+        }
+
+        .video-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .player-wrapper {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            mix-blend-mode: screen;
+            transition: transform 1.2s cubic-bezier(0.645, 0.045, 0.355, 1.000),
+                        opacity 1.2s cubic-bezier(0.645, 0.045, 0.355, 1.000);
+        }
+
+        .player-wrapper.inactive {
+            opacity: 0;
+            transform: scale(1.1);
+        }
+
+        .player-wrapper.active {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        .player-wrapper iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        .blend-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at center, transparent 30%, rgba(0,0,0,0.5) 70%);
+            mix-blend-mode: multiply;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.8s ease;
+        }
+
+        .blend-overlay.active {
+            opacity: 1;
+        }
+
+        /* Rest of the styles remain the same as dual-moviola.html */
+        /* ... Timeline and control styles ... */
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="main-screen">
+            <div class="video-container">
+                <div id="playerA" class="player-wrapper active"></div>
+                <div id="playerB" class="player-wrapper inactive"></div>
+                <div class="blend-overlay"></div>
+            </div>
+            <div class="controls">
+                <!-- Controls remain the same -->
+            </div>
+        </div>
+        <div id="timeline" class="timeline"></div>
+    </div>
+    <script src="https://player.vimeo.com/api/player.js"></script>
+    <script>
+        class FluidMoviola {
+            constructor() {
+                // ... Same video IDs and initial setup ...
+                this.transitionPoint = 0.8; // Start transition at 80% of video
+                this.setup();
+            }
+
+            async setupPlayers() {
+                const options = {
+                    controls: false,
+                    background: true,
+                    responsive: true,
+                    loop: false,
+                    autoplay: true,
+                    muted: true,
+                    quality: 'auto'
+                };
+
+                // Initialize both players
+                this.players.A = new Vimeo.Player('playerA', {
+                    ...options,
+                    id: this.videoIds[0]
+                });
+
+                this.players.B = new Vimeo.Player('playerB', {
+                    ...options,
+                    id: this.videoIds[1]
+                });
+
+                // Start preloading and playing next video
+                await this.preloadAndPlay(1, 'B');
+            }
+
+            async preloadAndPlay(index, playerKey) {
+                if (index >= this.videoIds.length) return;
+                
+                const player = this.players[playerKey];
+                await player.loadVideo(this.videoIds[index]);
+                player.setVolume(0);
+                
+                // Start playing but keep opacity at 0
+                await player.play();
+                // Seek to start to ensure we have video loaded
+                await player.setCurrentTime(0);
+                // Pause until needed
+                await player.pause();
+            }
+
+            setupPlayerEvents(player, playerKey) {
+                player.on('timeupdate', async data => {
+                    if (playerKey === this.activePlayer) {
+                        this.updateProgress(data.percent);
+                        this.updateTimeDisplay(data.seconds);
+
+                        // Start transition near the end of current video
+                        if (data.percent > this.transitionPoint && !this.isTransitioning) {
+                            this.isTransitioning = true;
+                            await this.startTransition();
+                        }
+                    }
+                });
+
+                player.on('ended', () => {
+                    if (playerKey === this.activePlayer) {
+                        this.completeTransition();
+                    }
+                });
+            }
+
+            async startTransition() {
+                const nextIndex = this.currentIndex + 1;
+                if (nextIndex >= this.videoIds.length) return;
+
+                const nextPlayer = this.players[this.activePlayer === 'A' ? 'B' : 'A'];
+                const nextWrapper = document.getElementById(`player${this.activePlayer === 'A' ? 'B' : 'A'}`);
+                
+                try {
+                    // Ensure next video is ready and playing
+                    await nextPlayer.play();
+                    
+                    // Start visual transition
+                    nextWrapper.classList.remove('inactive');
+                    nextWrapper.classList.add('active');
+                    
+                    // Update timeline
+                    const clips = document.querySelectorAll('.clip');
+                    clips[this.currentIndex].classList.remove('active');
+                    clips[nextIndex].classList.add('active');
+                    
+                    // Scroll clip into view
+                    clips[nextIndex].scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'center'
+                    });
+
+                    // Preload next video
+                    const nextNextIndex = nextIndex + 1;
+                    if (nextNextIndex < this.videoIds.length) {
+                        const nextNextPlayer = this.activePlayer;
+                        await this.preloadAndPlay(nextNextIndex, nextNextPlayer);
+                    }
+                } catch (error) {
+                    console.error('Error during transition:', error);
+                    this.isTransitioning = false;
+                }
+            }
+
+            async completeTransition() {
+                const currentWrapper = document.getElementById(`player${this.activePlayer}`);
+                currentWrapper.classList.remove('active');
+                currentWrapper.classList.add('inactive');
+
+                // Update current player and index
+                this.activePlayer = this.activePlayer === 'A' ? 'B' : 'A';
+                this.currentIndex++;
+                this.isTransitioning = false;
+            }
+
+            // ... Rest of the methods remain similar to dual-moviola.html ...
+        }
+
+        window.addEventListener('load', () => {
+            new FluidMoviola();
+        });
+    </script>
+</body>
+</html>

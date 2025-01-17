@@ -14,32 +14,357 @@
     }
     </script>
     <style>
+        :root {
+            --primary-bg: #1a1a1a;
+            --secondary-bg: #2a2a2a;
+            --accent: rgba(255, 241, 230, 0.9);
+            --accent-glow: rgba(255, 99, 71, 0.6);
+            --text: #ffffff;
+        }
+
         body {
             margin: 0;
             overflow: hidden;
             background: linear-gradient(135deg, #994040 0%, #662222 100%);
             touch-action: none;
+            font-family: 'Space Mono', monospace;
+            color: var(--text);
         }
-        #container {
+
+        /* Crystal View Styles */
+        #container, #moviola-view {
             width: 100vw;
             height: 100vh;
             touch-action: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            transition: opacity 0.5s ease;
         }
+
+        #moviola-view {
+            opacity: 0;
+            pointer-events: none;
+            background: var(--primary-bg);
+        }
+
+        #moviola-view.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        #container.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .view-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: rgba(26, 26, 26, 0.8);
+            border: 2px solid var(--accent);
+            color: var(--accent);
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-family: inherit;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            text-shadow: 0 0 10px var(--accent-glow);
+            backdrop-filter: blur(5px);
+        }
+
+        .view-toggle:hover {
+            background: var(--accent-glow);
+            color: var(--text);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px var(--accent-glow);
+        }
+
+        /* Moviola View Styles */
+        .viewer {
+            width: 100%;
+            height: 70vh;
+            background: #000;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .main-screen {
+            flex: 1;
+            position: relative;
+            background: #000;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #mainPlayer {
+            width: 100%;
+            height: 100%;
+            max-width: 100%;
+            aspect-ratio: 16/9;
+            background: #000;
+        }
+
+        .controls {
+            height: 60px;
+            background: var(--secondary-bg);
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            gap: 10px;
+            border-top: 1px solid var(--accent);
+        }
+
+        .control-btn, .fullscreen-btn {
+            background: transparent;
+            border: 1px solid var(--accent);
+            color: var(--accent);
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        .fullscreen-btn {
+            margin-left: auto;
+        }
+
+        .fade-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+
+        .progress-bar {
+            height: 4px;
+            background: var(--secondary-bg);
+            cursor: pointer;
+            position: relative;
+        }
+
+        .progress-fill {
+            height: 100%;
+            width: 0;
+            background: var(--accent);
+            transition: width 0.1s linear;
+            box-shadow: 0 0 10px var(--accent-glow);
+        }
+
+        .timeline {
+            height: 30vh;
+            background: var(--primary-bg);
+            overflow-x: auto;
+            overflow-y: hidden;
+            white-space: nowrap;
+            padding: 20px;
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            border-top: 1px solid var(--accent);
+            scroll-behavior: smooth;
+        }
+
+        .timeline::-webkit-scrollbar {
+            height: 8px;
+        }
+
+        .timeline::-webkit-scrollbar-track {
+            background: var(--secondary-bg);
+            border-radius: 4px;
+        }
+
+        .timeline::-webkit-scrollbar-thumb {
+            background: var(--accent);
+            border-radius: 4px;
+            box-shadow: 0 0 5px var(--accent-glow);
+        }
+
+        .clip {
+            position: relative;
+            min-width: 240px;
+            height: calc(100% - 40px);
+            background: var(--secondary-bg);
+            border: 1px solid var(--accent);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            overflow: hidden;
+            background-size: cover;
+            background-position: center;
+        }
+
+        .clip.active {
+            border: 2px solid var(--accent);
+            box-shadow: 0 0 20px var(--accent-glow);
+        }
+
+        .clip-info {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px;
+            z-index: 2;
+            backdrop-filter: blur(5px);
+        }
+
+        .clip-title {
+            color: var(--text);
+            font-size: 14px;
+            margin-bottom: 4px;
+            white-space: normal;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+        }
+
+        .clip-number {
+            color: var(--accent);
+            font-size: 12px;
+            font-family: 'Space Mono', monospace;
+        }
+
+        .preview-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            z-index: 1;
+            background: #000;
+        }
+
+        .preview-container iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: 0;
+        }
+
+        .clip:hover {
+            transform: translateY(-5px) scale(1.02);
+            box-shadow: 0 5px 15px var(--accent-glow);
+        }
+
+        .clip.active::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            border-radius: 6px;
+            box-shadow: inset 0 0 20px var(--accent-glow);
+            pointer-events: none;
+        }
+
         .vimeo-embed {
             width: 100%;
             height: 100%;
-            pointer-events: none;
         }
+
         @media (max-width: 768px) {
-            .vimeo-embed {
-                width: 320px;
-                height: 180px;
+            .viewer {
+                height: auto;
+            }
+
+            .main-screen {
+                height: 56.25vw; /* 16:9 aspect ratio */
+            }
+
+            .controls {
+                position: sticky;
+                top: 0;
+                z-index: 10;
+                background: rgba(0, 0, 0, 0.8);
+                backdrop-filter: blur(10px);
+                height: auto;
+                min-height: 50px;
+                padding: 8px;
+                flex-wrap: wrap;
+                justify-content: center;
+                gap: 8px;
+            }
+
+            .control-btn, .fullscreen-btn {
+                padding: 6px 12px;
+                font-size: 12px;
+                flex: 0 1 auto;
+            }
+
+            .time-display {
+                width: 100%;
+                text-align: center;
+                margin: 0;
+                order: -1;
+            }
+
+            .clip {
+                min-width: unset;
+                width: 100%;
+                height: auto;
+                min-height: 100px;
+                padding: 25px 30px;
+                background: var(--secondary-bg) !important;
+            }
+
+            .clip-info {
+                position: static;
+                background: none;
+                padding: 0;
+            }
+
+            .clip-title {
+                font-size: 16px;
+                margin-bottom: 10px;
+                white-space: normal;
+                line-height: 1.4;
+            }
+
+            .clip-number {
+                font-size: 14px;
+                opacity: 0.8;
+            }
+
+            .timeline {
+                flex-direction: column;
+                height: auto;
+                max-height: 40vh;
+                padding: 20px;
+                gap: 15px;
+            }
+
+            .preview-container {
+                display: none;
             }
         }
     </style>
 </head>
 <body>
+    <button class="view-toggle" id="viewToggle">Switch View ↔</button>
     <div id="container"></div>
+    <div id="moviola-view"></div>
     <script type="module">
         import * as THREE from 'three';
         import { CSS3DRenderer, CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
@@ -61,6 +386,7 @@
 
             setup() {
                 this.scene = new THREE.Scene();
+                this.scene.background = new THREE.Color('#994040');
                 
                 // Adjust camera parameters based on device
                 const fov = this.isMobile ? 85 : 75;
@@ -69,7 +395,15 @@
 
                 this.renderer = new CSS3DRenderer();
                 this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.domElement.style.background = 'linear-gradient(135deg, #994040 0%, #662222 100%)';
                 this.container.appendChild(this.renderer.domElement);
+
+                // Handle window resize
+                window.addEventListener('resize', () => {
+                    this.camera.aspect = window.innerWidth / window.innerHeight;
+                    this.camera.updateProjectionMatrix();
+                    this.renderer.setSize(window.innerWidth, window.innerHeight);
+                });
 
                 this.setupControls();
             }
@@ -220,12 +554,413 @@
                 
                 this.renderer.render(this.scene, this.camera);
             }
+
+            pause() {
+                this.autoRotate = false;
+            }
+
+            resume() {
+                this.autoRotate = true;
+            }
         }
 
         // Initialize
         window.addEventListener('load', () => {
-            new IntegratedVideoCrystal(document.getElementById('container'));
+            const crystal = new IntegratedVideoCrystal(document.getElementById('container'));
+            
+            // Initialize Moviola
+            const moviola = new FluidMoviola(document.getElementById('moviola-view'));
+            
+            // Setup view toggling
+            const viewToggle = document.getElementById('viewToggle');
+            const container = document.getElementById('container');
+            const moviolaView = document.getElementById('moviola-view');
+            
+            viewToggle.addEventListener('click', () => {
+                const isMoviola = container.classList.contains('hidden');
+                if (isMoviola) {
+                    container.classList.remove('hidden');
+                    moviolaView.classList.remove('active');
+                    crystal.resume();
+                    moviola.pause();
+                } else {
+                    container.classList.add('hidden');
+                    moviolaView.classList.add('active');
+                    crystal.pause();
+                    moviola.resume();
+                }
+            });
         });
+    </script>
+    
+    <!-- Import Moviola code -->
+    <script src="https://player.vimeo.com/api/player.js"></script>
+    <script>
+        // Import FluidMoviola class
+        class FluidMoviola {
+            constructor(container) {
+                this.container = container;
+                this.videoIds = [
+                    '1045251519',
+                    '1045251622', '1045251610', '1045251488', '1045251603', '1045251596', 
+                    '1045251591', '1045251574', '1045251561', '1045251554', '1045251546',
+                    '1045251538', '1045251528', '1045251511', '1045251497'
+                ];
+                this.currentIndex = 0;
+                this.player = null;
+                this.videoData = new Map();
+                this.setup();
+            }
+
+            async fetchVideoData() {
+                for (const id of this.videoIds) {
+                    try {
+                        const response = await fetch(`https://vimeo.com/api/v2/video/${id}.json`);
+                        const [data] = await response.json();
+                        let words = data.title
+                            .replace(/^\d{8}_\d{4}_/, '')
+                            .replace(/\bstoryboard\b/gi, '')
+                            .replace(/\.\w+$/, '')
+                            .replace(/_/g, ' ')
+                            .split(' ')
+                            .filter(word => word.length > 0);
+                        
+                        words.pop();
+                        words.pop();
+                        
+                        let cleanTitle = words
+                            .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+                            .join(' ')
+                            .trim();
+
+                        this.videoData.set(id, {
+                            title: cleanTitle,
+                            thumbnail: `https://vumbnail.com/${id}.jpg`
+                        });
+                    } catch (error) {
+                        console.error(`Error fetching data for video ${id}:`, error);
+                        this.videoData.set(id, {
+                            title: `Sequence ${id}`,
+                            thumbnail: ''
+                        });
+                    }
+                }
+            }
+
+            async setup() {
+                await this.fetchVideoData();
+                this.setupMainPlayer();
+                this.createTimeline();
+                this.setupControls();
+            }
+
+            setupMainPlayer() {
+                // Create the viewer structure
+                this.container.innerHTML = `
+                    <div class="viewer">
+                        <div class="main-screen">
+                            <div id="mainPlayer"></div>
+                            <div class="fade-overlay"></div>
+                        </div>
+                        <div class="controls">
+                            <button class="control-btn" id="prevBtn">⏮ PREV</button>
+                            <button class="control-btn" id="playBtn">⏯ PAUSE</button>
+                            <button class="control-btn" id="nextBtn">⏭ NEXT</button>
+                            <button class="fullscreen-btn" id="fullscreenBtn">⛶</button>
+                            <div class="time-display" id="timeDisplay">00:00</div>
+                        </div>
+                        <div class="progress-bar" id="progressBar">
+                            <div class="progress-fill" id="progressFill"></div>
+                        </div>
+                    </div>
+                    <div class="timeline" id="timeline"></div>
+                `;
+
+                const options = {
+                    id: this.videoIds[0],
+                    controls: false,
+                    background: true,
+                    responsive: true,
+                    loop: false,
+                    autoplay: true,
+                    muted: true,
+                    quality: 'auto'
+                };
+
+                this.player = new Vimeo.Player('mainPlayer', options);
+                this.setupPlayerEvents();
+                this.setupFullscreenButton();
+            }
+
+            setupPlayerEvents() {
+                let isTransitioning = false;
+
+                this.player.on('timeupdate', data => {
+                    this.updateProgress(data.percent);
+                    this.updateTimeDisplay(data.seconds);
+                    
+                    // Auto-scroll timeline near the end of video
+                    if (data.percent > 0.9 && this.currentIndex < this.videoIds.length - 1) {
+                        const nextClip = document.querySelectorAll('.clip')[this.currentIndex + 1];
+                        if (nextClip) {
+                            nextClip.scrollIntoView({
+                                behavior: 'smooth',
+                                block: 'center',
+                                inline: 'center'
+                            });
+                        }
+                    }
+                });
+
+                this.player.on('ended', async () => {
+                    if (isTransitioning) return;
+                    if (this.currentIndex < this.videoIds.length - 1) {
+                        isTransitioning = true;
+                        await this.playNext();
+                        isTransitioning = false;
+                    }
+                });
+
+                this.player.on('loaded', () => {
+                    this.player.setVolume(0);
+                    this.player.play();
+                });
+
+                this.player.on('play', () => {
+                    isTransitioning = false;
+                    document.getElementById('playBtn').textContent = '⏸ PAUSE';
+                });
+
+                this.player.on('pause', () => {
+                    document.getElementById('playBtn').textContent = '⏯ PLAY';
+                });
+            }
+
+            setupFullscreenButton() {
+                const fullscreenBtn = document.getElementById('fullscreenBtn');
+                const mainScreen = this.container.querySelector('.main-screen');
+
+                fullscreenBtn.addEventListener('click', () => {
+                    if (!document.fullscreenElement) {
+                        mainScreen.requestFullscreen().catch(err => {
+                            console.error(`Error attempting to enable fullscreen: ${err.message}`);
+                        });
+                    } else {
+                        document.exitFullscreen();
+                    }
+                });
+            }
+
+            async createClip(id, index, videoData) {
+                const clip = document.createElement('div');
+                clip.className = 'clip' + (index === 0 ? ' active' : '');
+                
+                // Set background thumbnail
+                const thumbnailUrl = `https://vumbnail.com/${id}.jpg`;
+                clip.style.background = `url(${thumbnailUrl}) center/cover no-repeat`;
+
+                // Try to get better quality thumbnail from Vimeo
+                try {
+                    const response = await fetch(`https://vimeo.com/api/v2/video/${id}.json`);
+                    const data = await response.json();
+                    if (data[0]?.thumbnail_large) {
+                        const img = new Image();
+                        img.onload = () => {
+                            clip.style.background = `url(${data[0].thumbnail_large}) center/cover no-repeat`;
+                        };
+                        img.src = data[0].thumbnail_large;
+                    }
+                } catch (error) {
+                    console.warn('Could not fetch Vimeo thumbnail:', error);
+                }
+
+                clip.innerHTML = `
+                    <div class="preview-container">
+                        <iframe 
+                            src="https://player.vimeo.com/video/${id}?background=1&autoplay=1&loop=1&autopause=0&muted=1&quality=540p" 
+                            frameborder="0" 
+                            allow="autoplay; fullscreen"
+                        ></iframe>
+                    </div>
+                    <div class="clip-info">
+                        <div class="clip-title">${videoData.title || `Sequence ${index + 1}`}</div>
+                        <div class="clip-number">SEQUENCE ${(index + 1).toString().padStart(2, '0')}</div>
+                    </div>
+                `;
+
+                // Handle preview on desktop only
+                if (window.matchMedia('(min-width: 769px)').matches) {
+                    const previewContainer = clip.querySelector('.preview-container');
+                    let previewPlayer = null;
+                    let previewTimeout;
+
+                    const startPreview = () => {
+                        if (!previewPlayer) {
+                            previewPlayer = new Vimeo.Player(previewContainer.querySelector('iframe'));
+                            previewPlayer.setVolume(0);
+                        }
+                        previewContainer.style.opacity = '1';
+                        previewPlayer.play().catch(console.warn);
+                    };
+
+                    const stopPreview = () => {
+                        clearTimeout(previewTimeout);
+                        if (previewPlayer) {
+                            previewContainer.style.opacity = '0';
+                            previewPlayer.pause().catch(console.warn);
+                        }
+                    };
+
+                    clip.addEventListener('mouseenter', () => {
+                        previewTimeout = setTimeout(startPreview, 200);
+                    });
+
+                    clip.addEventListener('mouseleave', stopPreview);
+                }
+
+                clip.addEventListener('click', () => {
+                    this.switchToClip(index);
+                    if (window.innerWidth <= 768) {
+                        this.container.querySelector('.main-screen').scrollIntoView({ 
+                            behavior: 'smooth', 
+                            block: 'start' 
+                        });
+                    }
+                });
+
+                return clip;
+            }
+
+            async createTimeline() {
+                const timeline = document.getElementById('timeline');
+                timeline.innerHTML = '';
+                
+                // Create and append clips
+                const clipPromises = this.videoIds.map((id, index) => {
+                    const videoData = this.videoData.get(id);
+                    return this.createClip(id, index, videoData);
+                });
+                
+                const clips = await Promise.all(clipPromises);
+                clips.forEach(clip => timeline.appendChild(clip));
+            }
+
+            setupControls() {
+                document.getElementById('playBtn').addEventListener('click', () => this.togglePlay());
+                document.getElementById('prevBtn').addEventListener('click', () => this.playPrev());
+                document.getElementById('nextBtn').addEventListener('click', () => this.playNext());
+                
+                document.getElementById('progressBar').addEventListener('click', (e) => {
+                    const percent = e.offsetX / e.target.offsetWidth;
+                    this.player.getDuration().then(duration => {
+                        this.player.setCurrentTime(percent * duration);
+                    });
+                });
+
+                document.addEventListener('keydown', (e) => {
+                    switch(e.code) {
+                        case 'Space':
+                            e.preventDefault();
+                            this.togglePlay();
+                            break;
+                        case 'ArrowLeft':
+                            this.playPrev();
+                            break;
+                        case 'ArrowRight':
+                            this.playNext();
+                            break;
+                    }
+                });
+            }
+
+            updateProgress(percent) {
+                document.getElementById('progressFill').style.width = (percent * 100) + '%';
+            }
+
+            updateTimeDisplay(seconds) {
+                const minutes = Math.floor(seconds / 60);
+                const remainingSeconds = Math.floor(seconds % 60);
+                document.getElementById('timeDisplay').textContent = 
+                    `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+            }
+
+            async playPrev() {
+                if (this.currentIndex > 0) {
+                    await this.switchToClip(this.currentIndex - 1);
+                }
+            }
+
+            async playNext() {
+                if (this.currentIndex < this.videoIds.length - 1) {
+                    await this.switchToClip(this.currentIndex + 1);
+                }
+            }
+
+            async switchToClip(index) {
+                if (index === this.currentIndex) return;
+                
+                const clips = document.querySelectorAll('.clip');
+                const currentClip = clips[this.currentIndex];
+                const nextClip = clips[index];
+                
+                // Remove active class from current clip
+                currentClip.classList.remove('active');
+                
+                // Add active class to next clip with animation
+                nextClip.classList.add('active');
+                
+                // Smooth scroll to the next clip
+                const timeline = document.querySelector('.timeline');
+                const timelineRect = timeline.getBoundingClientRect();
+                const clipRect = nextClip.getBoundingClientRect();
+                
+                const scrollLeft = timeline.scrollLeft + (clipRect.left - timelineRect.left) - (timelineRect.width / 2) + (clipRect.width / 2);
+                
+                timeline.scrollTo({
+                    left: scrollLeft,
+                    behavior: 'smooth'
+                });
+                
+                this.currentIndex = index;
+                
+                try {
+                    const overlay = this.container.querySelector('.fade-overlay');
+                    overlay.style.opacity = '1';
+                    
+                    await this.player.loadVideo(this.videoIds[index]);
+                    this.player.setVolume(0);
+                    await this.player.play();
+                    
+                    // Fade out overlay
+                    setTimeout(() => {
+                        overlay.style.opacity = '0';
+                    }, 300);
+                } catch (error) {
+                    console.error('Error switching clips:', error);
+                }
+            }
+
+            togglePlay() {
+                const state = this.player.getPaused();
+                if (state) {
+                    this.player.play();
+                } else {
+                    this.player.pause();
+                }
+            }
+
+            pause() {
+                if (this.player) {
+                    this.player.pause();
+                }
+            }
+
+            resume() {
+                if (this.player) {
+                    this.player.play();
+                }
+            }
+        }
     </script>
 </body>
 </html>

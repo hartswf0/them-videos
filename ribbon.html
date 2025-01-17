@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Film Ribbon Videos</title>
+    <style>
+        :root {
+            --cell-width: min(320px, 80vw);
+            --cell-height: calc(var(--cell-width) * 0.5625);
+            --hole-size: min(20px, 5vw);
+            --ribbon-padding: max(40px, 5vh);
+        }
+
+        body {
+            margin: 0;
+            background: #1a1a1a;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            font-family: Arial, sans-serif;
+            overflow-x: hidden;
+        }
+
+        .film-strip-container {
+            position: relative;
+            width: 100%;
+            padding: var(--ribbon-padding) 0;
+            background: linear-gradient(to bottom, 
+                transparent var(--ribbon-padding),
+                #000 var(--ribbon-padding),
+                #000 calc(100% - var(--ribbon-padding)),
+                transparent calc(100% - var(--ribbon-padding))
+            );
+        }
+
+        .film-strip {
+            display: flex;
+            overflow-x: auto;
+            overflow-y: hidden;
+            scroll-snap-type: x mandatory;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+            -webkit-overflow-scrolling: touch;
+            gap: 4px;
+            padding: 0 calc(50vw - var(--cell-width) / 2);
+        }
+
+        .film-strip::-webkit-scrollbar {
+            display: none;
+        }
+
+        .film-cell {
+            flex: 0 0 auto;
+            position: relative;
+            width: var(--cell-width);
+            padding: calc(var(--hole-size) + 10px) 10px;
+            background: #000;
+            scroll-snap-align: center;
+            transition: transform 0.3s ease;
+        }
+
+        .film-cell:hover {
+            transform: scale(1.02);
+        }
+
+        .film-cell.title {
+            position: relative;
+        }
+
+        .film-cell.title::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            border: 2px solid #fff3;
+            pointer-events: none;
+        }
+
+        .sprocket-holes {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        .hole {
+            position: absolute;
+            width: var(--hole-size);
+            height: var(--hole-size);
+            background: #1a1a1a;
+            border-radius: 50%;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+        }
+
+        .hole:nth-child(1) { top: 5px; left: 10px; }
+        .hole:nth-child(2) { bottom: 5px; left: 10px; }
+        .hole:nth-child(3) { top: 5px; right: 10px; }
+        .hole:nth-child(4) { bottom: 5px; right: 10px; }
+
+        .vimeo-embed {
+            width: 100%;
+            height: var(--cell-height);
+            border: none;
+            display: block;
+        }
+
+        .scroll-hint {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #fff;
+            background: rgba(0,0,0,0.7);
+            padding: 10px 20px;
+            border-radius: 20px;
+            opacity: 1;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+            font-size: 14px;
+        }
+
+        .scroll-hint.hidden {
+            opacity: 0;
+        }
+
+        @media (hover: none) {
+            .film-cell:hover {
+                transform: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="film-strip-container">
+        <div class="film-strip" id="filmStrip"></div>
+    </div>
+    <div class="scroll-hint" id="scrollHint">Scroll horizontally to view more videos</div>
+
+    <script>
+        const videoIds = [
+            '1045251519', // Title video first
+            '1045251622', '1045251610', '1045251488', '1045251603', '1045251596', 
+            '1045251591', '1045251574', '1045251561', '1045251554', '1045251546',
+            '1045251538', '1045251528', '1045251511', '1045251497'
+        ];
+
+        const filmStrip = document.getElementById('filmStrip');
+        const scrollHint = document.getElementById('scrollHint');
+        let scrollTimeout;
+
+        function createFilmCell(videoId, index) {
+            const cell = document.createElement('div');
+            cell.className = 'film-cell';
+            if (index === 0) cell.classList.add('title');
+
+            const sprocketHoles = document.createElement('div');
+            sprocketHoles.className = 'sprocket-holes';
+            for (let i = 0; i < 4; i++) {
+                const hole = document.createElement('div');
+                hole.className = 'hole';
+                sprocketHoles.appendChild(hole);
+            }
+            cell.appendChild(sprocketHoles);
+
+            const iframe = document.createElement('iframe');
+            iframe.src = `https://player.vimeo.com/video/${videoId}?title=0&byline=0&portrait=0&badge=0&autopause=0&player_id=0&app_id=58479&background=1&autoplay=1&loop=1&muted=1`;
+            iframe.className = 'vimeo-embed';
+            iframe.allow = "autoplay; fullscreen; picture-in-picture";
+            cell.appendChild(iframe);
+
+            return cell;
+        }
+
+        // Create film cells
+        videoIds.forEach((videoId, index) => {
+            const cell = createFilmCell(videoId, index);
+            filmStrip.appendChild(cell);
+        });
+
+        // Smooth scroll handling
+        filmStrip.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const scrollSpeed = 1.5;
+            filmStrip.scrollLeft += e.deltaY * scrollSpeed;
+            
+            // Show scroll hint
+            scrollHint.classList.remove('hidden');
+            clearTimeout(scrollTimeout);
+            scrollTimeout = setTimeout(() => {
+                scrollHint.classList.add('hidden');
+            }, 2000);
+        });
+
+        // Touch scroll handling
+        let isScrolling = false;
+        let startX;
+        let scrollLeft;
+
+        filmStrip.addEventListener('touchstart', (e) => {
+            isScrolling = true;
+            startX = e.touches[0].pageX - filmStrip.offsetLeft;
+            scrollLeft = filmStrip.scrollLeft;
+        });
+
+        filmStrip.addEventListener('touchmove', (e) => {
+            if (!isScrolling) return;
+            e.preventDefault();
+            const x = e.touches[0].pageX - filmStrip.offsetLeft;
+            const walk = (x - startX) * 2;
+            filmStrip.scrollLeft = scrollLeft - walk;
+        });
+
+        filmStrip.addEventListener('touchend', () => {
+            isScrolling = false;
+        });
+
+        // Hide scroll hint after initial delay
+        setTimeout(() => {
+            scrollHint.classList.add('hidden');
+        }, 3000);
+
+        // Center the title video on load
+        window.addEventListener('load', () => {
+            const titleCell = filmStrip.querySelector('.film-cell.title');
+            if (titleCell) {
+                titleCell.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            }
+        });
+    </script>
+</body>
+</html>

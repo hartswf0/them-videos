@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dual Moviola</title>
+    <style>
+        :root {
+            --primary-bg: #1a1a1a;
+            --secondary-bg: #2a2a2a;
+            --accent: rgb(0, 255, 157);
+            --text: #ffffff;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: var(--primary-bg);
+            color: var(--text);
+            font-family: monospace;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+
+        .main-screen {
+            flex-grow: 1;
+            position: relative;
+            background: #000;
+            overflow: hidden;
+        }
+
+        .player-wrapper {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            transition: opacity 0.8s cubic-bezier(0.4, 0.0, 0.2, 1);
+        }
+
+        .player-wrapper.inactive {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .player-wrapper iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        .timeline {
+            background: var(--primary-bg);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            overflow-y: auto;
+            border-left: 2px solid var(--accent);
+            width: 300px;
+        }
+
+        .clip {
+            background: var(--secondary-bg);
+            padding: 10px;
+            border: 1px solid rgba(0, 255, 157, 0.2);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.5s cubic-bezier(0.4, 0.0, 0.2, 1);
+            opacity: 0.6;
+            transform-origin: left center;
+        }
+
+        .clip:hover {
+            border-color: var(--accent);
+            opacity: 0.8;
+        }
+
+        .clip.active {
+            border: 2px solid var(--accent);
+            background: #3a3a3a;
+            opacity: 1;
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(0, 255, 157, 0.3);
+        }
+
+        .clip-info {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            padding: 5px;
+        }
+
+        .clip-title {
+            color: var(--accent);
+            font-size: 0.9em;
+            font-weight: bold;
+            margin: 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 2.7em;
+            line-height: 1.35;
+            overflow: hidden;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+        }
+
+        .clip-number {
+            font-size: 0.8em;
+            color: #fff;
+        }
+
+        .controls {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 20px;
+            background: linear-gradient(transparent, rgba(0,0,0,0.8));
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .progress-bar {
+            flex-grow: 1;
+            height: 4px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 2px;
+            cursor: pointer;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--accent);
+            width: 0;
+            transition: width 0.1s linear;
+        }
+
+        button {
+            background: transparent;
+            border: 1px solid var(--accent);
+            color: var(--accent);
+            padding: 5px 10px;
+            cursor: pointer;
+            font-family: monospace;
+            transition: all 0.3s ease;
+        }
+
+        button:hover {
+            background: var(--accent);
+            color: var(--primary-bg);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="main-screen">
+            <div id="playerA" class="player-wrapper"></div>
+            <div id="playerB" class="player-wrapper inactive"></div>
+            <div class="controls">
+                <button id="playBtn">⏸ PAUSE</button>
+                <button id="prevBtn">⏮</button>
+                <button id="nextBtn">⏭</button>
+                <div id="progressBar" class="progress-bar">
+                    <div id="progressFill" class="progress-fill"></div>
+                </div>
+                <div id="timeDisplay">00:00</div>
+            </div>
+        </div>
+        <div id="timeline" class="timeline"></div>
+    </div>
+    <script src="https://player.vimeo.com/api/player.js"></script>
+    <script>
+        class DualMoviola {
+            constructor() {
+                this.videoIds = [
+                    '1045251519',
+                    '1045251622', '1045251610', '1045251488', '1045251603', '1045251596', 
+                    '1045251591', '1045251574', '1045251561', '1045251554', '1045251546',
+                    '1045251538', '1045251528', '1045251511', '1045251497'
+                ];
+                this.currentIndex = 0;
+                this.activePlayer = 'A';
+                this.players = {
+                    A: null,
+                    B: null
+                };
+                this.preloadedVideos = new Set();
+                this.videoData = new Map();
+                this.setup();
+            }
+
+            async setup() {
+                await this.fetchVideoData();
+                await this.setupPlayers();
+                this.createTimeline();
+                this.setupControls();
+            }
+
+            async setupPlayers() {
+                const options = {
+                    controls: false,
+                    background: true,
+                    responsive: true,
+                    loop: false,
+                    autoplay: true,
+                    muted: true,
+                    quality: 'auto'
+                };
+
+                // Initialize both players
+                this.players.A = new Vimeo.Player('playerA', {
+                    ...options,
+                    id: this.videoIds[0]
+                });
+
+                this.players.B = new Vimeo.Player('playerB', {
+                    ...options,
+                    id: this.videoIds[1]
+                });
+
+                // Setup event handlers
+                for (const [key, player] of Object.entries(this.players)) {
+                    this.setupPlayerEvents(player, key);
+                }
+
+                // Start preloading next videos
+                this.preloadNextVideos(0);
+            }
+
+            setupPlayerEvents(player, playerKey) {
+                player.on('timeupdate', data => {
+                    if (playerKey === this.activePlayer) {
+                        this.updateProgress(data.percent);
+                        this.updateTimeDisplay(data.seconds);
+
+                        // Preload next video when current is at 70%
+                        if (data.percent > 0.7) {
+                            this.preloadNextVideos(this.currentIndex);
+                        }
+                    }
+                });
+
+                player.on('ended', () => {
+                    if (playerKey === this.activePlayer) {
+                        this.playNext();
+                    }
+                });
+
+                player.on('loaded', () => {
+                    player.setVolume(0);
+                    if (playerKey === this.activePlayer) {
+                        player.play();
+                    }
+                });
+            }
+
+            async preloadNextVideos(currentIndex) {
+                const nextIndex = currentIndex + 1;
+                const nextNextIndex = currentIndex + 2;
+
+                if (nextIndex < this.videoIds.length && !this.preloadedVideos.has(this.videoIds[nextIndex])) {
+                    const inactivePlayer = this.players[this.activePlayer === 'A' ? 'B' : 'A'];
+                    await inactivePlayer.loadVideo(this.videoIds[nextIndex]);
+                    this.preloadedVideos.add(this.videoIds[nextIndex]);
+                }
+
+                if (nextNextIndex < this.videoIds.length && !this.preloadedVideos.has(this.videoIds[nextNextIndex])) {
+                    const nextVideo = new Vimeo.Player({
+                        id: this.videoIds[nextNextIndex],
+                        background: true,
+                        muted: true
+                    });
+                    await nextVideo.ready();
+                    this.preloadedVideos.add(this.videoIds[nextNextIndex]);
+                }
+            }
+
+            async playNext() {
+                if (this.currentIndex >= this.videoIds.length - 1) return;
+
+                const nextIndex = this.currentIndex + 1;
+                const currentPlayer = this.players[this.activePlayer];
+                const nextPlayer = this.players[this.activePlayer === 'A' ? 'B' : 'A'];
+                
+                // Update timeline
+                const clips = document.querySelectorAll('.clip');
+                clips[this.currentIndex].classList.remove('active');
+                clips[nextIndex].classList.add('active');
+                
+                // Scroll into view
+                clips[nextIndex].scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center'
+                });
+
+                try {
+                    // Show next player (should already be loaded)
+                    document.getElementById(`player${this.activePlayer === 'A' ? 'B' : 'A'}`).classList.remove('inactive');
+                    
+                    // Start playing next video
+                    await nextPlayer.play();
+                    
+                    // After a short delay, hide current player
+                    setTimeout(() => {
+                        document.getElementById(`player${this.activePlayer}`).classList.add('inactive');
+                        this.activePlayer = this.activePlayer === 'A' ? 'B' : 'A';
+                    }, 100);
+
+                    this.currentIndex = nextIndex;
+                    
+                    // Start preloading next videos
+                    this.preloadNextVideos(nextIndex);
+                } catch (error) {
+                    console.error('Error during transition:', error);
+                }
+            }
+
+            async fetchVideoData() {
+                for (const id of this.videoIds) {
+                    try {
+                        const response = await fetch(`https://vimeo.com/api/v2/video/${id}.json`);
+                        const [data] = await response.json();
+                        let words = data.title
+                            .replace(/^\d{8}_\d{4}_/, '')
+                            .replace(/\bstoryboard\b/gi, '')
+                            .replace(/\.\w+$/, '')
+                            .replace(/_/g, ' ')
+                            .split(' ')
+                            .filter(word => word.length > 0);
+                        
+                        words.pop();
+                        words.pop();
+                        
+                        let cleanTitle = words
+                            .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+                            .join(' ')
+                            .trim();
+
+                        this.videoData.set(id, {
+                            title: cleanTitle,
+                            thumbnail: `https://vumbnail.com/${id}.jpg`
+                        });
+                    } catch (error) {
+                        console.error(`Error fetching data for video ${id}:`, error);
+                        this.videoData.set(id, {
+                            title: `Sequence ${id}`,
+                            thumbnail: ''
+                        });
+                    }
+                }
+            }
+
+            createTimeline() {
+                const timeline = document.getElementById('timeline');
+                timeline.innerHTML = '';
+                
+                this.videoIds.forEach((id, index) => {
+                    const videoData = this.videoData.get(id);
+                    const clip = document.createElement('div');
+                    clip.className = 'clip' + (index === 0 ? ' active' : '');
+                    
+                    clip.innerHTML = `
+                        <div class="clip-info">
+                            <div class="clip-title">${videoData.title || `Sequence ${index + 1}`}</div>
+                            <div class="clip-number">SEQUENCE ${(index + 1).toString().padStart(2, '0')}</div>
+                        </div>
+                    `;
+                    
+                    clip.addEventListener('click', () => this.switchToClip(index));
+                    timeline.appendChild(clip);
+                });
+            }
+
+            setupControls() {
+                document.getElementById('playBtn').addEventListener('click', () => this.togglePlay());
+                document.getElementById('prevBtn').addEventListener('click', () => this.playPrev());
+                document.getElementById('nextBtn').addEventListener('click', () => this.playNext());
+                
+                document.getElementById('progressBar').addEventListener('click', (e) => {
+                    const percent = e.offsetX / e.target.offsetWidth;
+                    this.players[this.activePlayer].setCurrentTime(percent * this.players[this.activePlayer].getDuration());
+                });
+
+                document.addEventListener('keydown', (e) => {
+                    switch(e.code) {
+                        case 'Space':
+                            e.preventDefault();
+                            this.togglePlay();
+                            break;
+                        case 'ArrowLeft':
+                            this.playPrev();
+                            break;
+                        case 'ArrowRight':
+                            this.playNext();
+                            break;
+                    }
+                });
+            }
+
+            async togglePlay() {
+                const player = this.players[this.activePlayer];
+                const state = await player.getPaused();
+                if (state) {
+                    player.play();
+                    document.getElementById('playBtn').textContent = '⏸ PAUSE';
+                } else {
+                    player.pause();
+                    document.getElementById('playBtn').textContent = '⏯ PLAY';
+                }
+            }
+
+            updateProgress(percent) {
+                document.getElementById('progressFill').style.width = (percent * 100) + '%';
+            }
+
+            updateTimeDisplay(seconds) {
+                const minutes = Math.floor(seconds / 60);
+                const remainingSeconds = Math.floor(seconds % 60);
+                document.getElementById('timeDisplay').textContent = 
+                    `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+            }
+
+            async playPrev() {
+                if (this.currentIndex > 0) {
+                    const prevIndex = this.currentIndex - 1;
+                    await this.switchToClip(prevIndex);
+                }
+            }
+
+            async switchToClip(index) {
+                if (index === this.currentIndex) return;
+                
+                const clips = document.querySelectorAll('.clip');
+                clips[this.currentIndex].classList.remove('active');
+                clips[index].classList.add('active');
+
+                const nextPlayer = this.players[this.activePlayer === 'A' ? 'B' : 'A'];
+                
+                try {
+                    // Load and prepare next video
+                    await nextPlayer.loadVideo(this.videoIds[index]);
+                    nextPlayer.setVolume(0);
+                    
+                    // Show next player
+                    document.getElementById(`player${this.activePlayer === 'A' ? 'B' : 'A'}`).classList.remove('inactive');
+                    
+                    // Start playing
+                    await nextPlayer.play();
+                    
+                    // After a short delay, hide current player
+                    setTimeout(() => {
+                        document.getElementById(`player${this.activePlayer}`).classList.add('inactive');
+                        this.activePlayer = this.activePlayer === 'A' ? 'B' : 'A';
+                    }, 100);
+
+                    this.currentIndex = index;
+                    
+                    // Scroll into view
+                    clips[index].scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'center'
+                    });
+
+                    // Preload next videos
+                    this.preloadNextVideos(index);
+                } catch (error) {
+                    console.error('Error switching clips:', error);
+                }
+            }
+        }
+
+        window.addEventListener('load', () => {
+            new DualMoviola();
+        });
+    </script>
+</body>
+</html>
